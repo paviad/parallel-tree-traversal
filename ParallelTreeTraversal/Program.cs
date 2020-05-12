@@ -45,11 +45,12 @@ namespace ParallelTreeTraversal {
 
     internal class Tree {
         private int _queued = 0;
-
+        
         public string Name { get; }
         public Tree Parent { get; set; }
         public List<Tree> Children { get; set; }
         public int Hash { get; set; }
+        public long Elapsed { get; private set; }
 
         public Tree(string name) {
             Name = name;
@@ -94,8 +95,19 @@ namespace ParallelTreeTraversal {
         public static extern int GetCurrentProcessorNumber();
 
         public void Calculate() {
+            var sw = new Stopwatch();
+            sw.Start();
             Console.WriteLine($"Calculating for {Name} on processor {GetCurrentProcessorNumber()}");
-            Thread.Sleep(5000);
+            uint n;
+            string randomFileName;
+            do {
+                randomFileName = System.IO.Path.GetRandomFileName();
+                n = (uint)randomFileName.GetHashCode();
+            } while (n > 500);
+
+            sw.Stop();
+            Elapsed = sw.ElapsedMilliseconds;
+            Console.WriteLine($"Found {randomFileName} with hash {n} after {Elapsed} msec");
             Hash = 1;
             if (Parent?.IsReady() ?? false) {
                 Console.WriteLine("Parent ready");
@@ -112,6 +124,7 @@ namespace ParallelTreeTraversal {
     class Program {
         private static Random rnd = new Random();
         private static int nodeCount = 0;
+        private static List<Tree> allNodes = new List<Tree>();
         static void Main(string[] args) {
             var sw = new Stopwatch();
             Console.WriteLine("Hello World!");
@@ -127,7 +140,9 @@ namespace ParallelTreeTraversal {
             }
             t.Wait();
             sw.Stop();
-            Console.WriteLine($"Elapsed {sw.ElapsedMilliseconds}");
+            var sumElapsed = allNodes.Sum(x => x.Elapsed);
+            var elapsed = sw.ElapsedMilliseconds;
+            Console.WriteLine($"Elapsed {elapsed}, for total calculation time of {sumElapsed} (parallelism ratio: {1.0*sumElapsed/elapsed})");
         }
 
         static Tree GenerateRandomTree(int depth = 4, string name = "1") {
@@ -136,6 +151,7 @@ namespace ParallelTreeTraversal {
             }
             var rc = new Tree(name);
             nodeCount++;
+            allNodes.Add(rc);
             var nChildren = rnd.Next(9) + 1;
             for (int i = 0; i < nChildren; i++) {
                 var child = GenerateRandomTree(depth - 1, $"{name}.{i + 1}");
