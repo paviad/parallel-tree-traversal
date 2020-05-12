@@ -25,6 +25,7 @@ namespace ParallelTreeTraversal {
                 var workList = new List<Tree>();
                 var t = GetItem();
                 while (t != null) {
+                    retryCount = 0;
                     workList.Add(t);
                     t = GetItem();
                 }
