@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 namespace ParallelTreeTraversal {
     internal static class Processor {
         private static readonly ConcurrentBag<Tree> WorkBag = new ConcurrentBag<Tree>();
+        public static int[] ProcessorWorkCount = new int[20];
+        public static int[] ProcessorTimeCount = new int[20];
 
         public static void AddItem(Tree tree) {
             Console.WriteLine($"Queuing {tree.Name}");
@@ -33,7 +35,11 @@ namespace ParallelTreeTraversal {
                 }
 
                 Console.WriteLine($"Processing {workList.Count} items");
-                Parallel.ForEach(workList, x => x.Calculate());
+                Parallel.ForEach(workList, x => {
+                    var processor = x.Calculate();
+                    Interlocked.Increment(ref ProcessorWorkCount[processor]);
+                    Interlocked.Add(ref ProcessorTimeCount[processor], (int)x.Elapsed);
+                });
                 Thread.Sleep(100);
                 retryCount++;
                 if (retryCount == 10) {
@@ -94,10 +100,11 @@ namespace ParallelTreeTraversal {
         [DllImport("Kernel32.dll"), SuppressUnmanagedCodeSecurity]
         public static extern int GetCurrentProcessorNumber();
 
-        public void Calculate() {
+        public int Calculate() {
             var sw = new Stopwatch();
             sw.Start();
-            Console.WriteLine($"Calculating for {Name} on processor {GetCurrentProcessorNumber()}");
+            var currentProcessorNumber = GetCurrentProcessorNumber();
+            Console.WriteLine($"Calculating for {Name} on processor {currentProcessorNumber}");
             uint n;
             string randomFileName;
             do {
@@ -113,6 +120,8 @@ namespace ParallelTreeTraversal {
                 Console.WriteLine("Parent ready");
                 Parent.QueueWorkItemThreadSafe();
             }
+
+            return currentProcessorNumber;
         }
 
         public bool IsReady() {
@@ -143,9 +152,14 @@ namespace ParallelTreeTraversal {
             var sumElapsed = allNodes.Sum(x => x.Elapsed);
             var elapsed = sw.ElapsedMilliseconds;
             Console.WriteLine($"Elapsed {elapsed}, for total calculation time of {sumElapsed} (parallelism ratio: {1.0*sumElapsed/elapsed})");
+            for (int i = 0; i < Processor.ProcessorWorkCount.Length; i++) {
+                var n = Processor.ProcessorWorkCount[i];
+                var ptime = Processor.ProcessorTimeCount[i];
+                Console.WriteLine($"Ran {n} jobs on processor {i} for {ptime} msec");
+            }
         }
 
-        static Tree GenerateRandomTree(int depth = 4, string name = "1") {
+        static Tree GenerateRandomTree(int depth = 5, string name = "1") {
             if (depth == 0) {
                 return null;
             }
