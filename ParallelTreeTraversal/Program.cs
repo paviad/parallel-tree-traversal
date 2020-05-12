@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -88,8 +90,11 @@ namespace ParallelTreeTraversal {
             }
         }
 
+        [DllImport("Kernel32.dll"), SuppressUnmanagedCodeSecurity]
+        public static extern int GetCurrentProcessorNumber();
+
         public void Calculate() {
-            Console.WriteLine($"Calculating for {Name}");
+            Console.WriteLine($"Calculating for {Name} on processor {GetCurrentProcessorNumber()}");
             Thread.Sleep(5000);
             Hash = 1;
             if (Parent?.IsReady() ?? false) {
@@ -115,6 +120,11 @@ namespace ParallelTreeTraversal {
             sw.Start();
             var t = Task.Run(Processor.Process);
             tree.Visit();
+            while (!t.IsCompleted) {
+                var currentThreads = Process.GetCurrentProcess().Threads;
+                Console.WriteLine($"Threads active {currentThreads.Count}");
+                Thread.Sleep(1000);
+            }
             t.Wait();
             sw.Stop();
             Console.WriteLine($"Elapsed {sw.ElapsedMilliseconds}");
